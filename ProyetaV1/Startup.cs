@@ -16,6 +16,7 @@ using ProyetaV1.Context;
 using ProyetaV1.Entities;
 using ProyetaV1.Repositories;
 using ProyetaV1.Interfaces;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -84,6 +85,10 @@ namespace ProyetaV1
                     }
             });
 
+                //Inyecta las dependencias necesarias de identity
+                services.AddIdentity<User, IdentityRole>().AddEntityFrameworkStores<UserContext>().AddDefaultTokenProviders();
+                //Toma un usuario, los roles y coloca la configuración por default.
+
                 //Añade un tipo de autentificación:
                 /*Agrega autentificacion JWT ("Con "Bearers"")*/
                 services.AddAuthentication(options =>
@@ -115,8 +120,15 @@ namespace ProyetaV1
                     builder.UseSqlServer(connectionString: "Data Source=(localdb)\\MSSQLLocalDB;Database=ProyectaDb;Integrated Security=True;");
                 });
 
+
+                services.AddDbContext<UserContext>(optionsAction: (services, options) =>
+                {
+                    options.UseInternalServiceProvider(services);
+                    options.UseSqlServer(connectionString: "Data Source=(localdb)\\MSSQLLocalDB;Database=UsersDb;Integrated Security=True;");
+                });
+
                 // Inyección de dependencia de repositorios:
-                services.AddScoped<IUser, UserRepository>();
+      
                 services.AddScoped<IPerfil, PerfilRepository>();
                 services.AddScoped<IDisciplina, DisciplinaRepository>();
                 services.AddScoped<IAreaDeIntereses, AreaDeInteresRepository>();
@@ -138,6 +150,8 @@ namespace ProyetaV1
                 app.UseHttpsRedirection();
 
                 app.UseRouting();
+                
+                app.UseAuthentication();
 
                 app.UseCors(MyAllowSpecificOrigins);
 
@@ -149,41 +163,7 @@ namespace ProyetaV1
                 });
             }
 
-        //CORREGIR AQUÍ
-        // AGREGAR EN LA BD OTROS DOS CAMPOS LLAMADOS TOKENDESESION Y VALIDOTO 
-        //AGREGAR EL LOGIN RESPONSE VIEW MODEL
-
-        private async Task<LoginResponseViewModel> GetToken(User currentUser)
-        {
-            var userRoles = await _userManager.GetRolesAsync(currentUser);
-
-            var authClaims = new List<Claim>()
-            {
-                new Claim (ClaimTypes.Name,currentUser.UserName),
-                new Claim (JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-            };
-
-            //agregamos anuestra lista de privilegios o claims todos los privilegios de nuestro usuario
-            // ESTOS PRIVILEGIOS  SON LOS DE TIPO DE USUARIO DE LA BD
-            authClaims.AddRange(userRoles.Select(x => new Claim(ClaimTypes.Role, x)));
-
-            //levantamos nuestro signin key
-            var authSignInKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("KeySecretaSuperLargaDeAutorizacion")); //Encargado de proveernos info con la llave secreta para ingresar a la aplicación
-
-            //creo el token
-            var token = new JwtSecurityToken(
-                issuer: "https://localhost:5001",
-                audience: "https://localhost:5001",
-                expires: DateTime.Now.AddHours(1),
-                claims: authClaims,
-                signingCredentials: new SigningCredentials(authSignInKey, SecurityAlgorithms.HmacSha256));
-
-            return new LoginResponseViewModel
-            {
-                Token = new JwtSecurityTokenHandler().WriteToken(token),
-                ValidTo = token.ValidTo
-            };
-        }
+       
     }
     }
 
